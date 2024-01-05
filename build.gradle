@@ -1,14 +1,15 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.2.1'
-	id 'io.spring.dependency-management' version '1.1.4'
+	id 'org.springframework.boot' version '2.6.7'
+	id 'io.spring.dependency-management' version '1.0.11.RELEASE'
+	id "com.github.node-gradle.node" version "3.3.0" //node 베이스 코드를 gradle로 빌드하기 위함
 }
 
 group = 'com.project'
 version = '0.0.1-SNAPSHOT'
 
 java {
-	sourceCompatibility = '17'
+	sourceCompatibility = '11'
 }
 
 configurations {
@@ -23,7 +24,7 @@ repositories {
 
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-	implementation 'org.springframework.boot:spring-boot-starter-security'
+//	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
@@ -35,3 +36,33 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+
+// node 버전 및 설정
+node {
+	nodeModulesDir = file("$projectDir/front-end")
+	version = '18.3.0'
+	download = true
+}
+
+// react 빌드 툴
+task npmBuild(type: NpmTask) {
+	args = ['run', "build"]
+}
+
+// 프론트 빌드 하면 build/resources/main/static/.에 생기는데, 이것을 $projectDir/front-end/static 여기로 copy
+task copyFrontEnd(type: Copy) {
+	from "$projectDir/front-end/static"
+	into 'build/resources/main/static/.'
+}
+
+// 프론트 빌드 코드, 노드 모듈 삭제
+task cleanFrontEnd(type: Delete) {
+	delete "$projectDir/front-end/static", "$projectDir/front-end/node_modules"
+}
+
+npmBuild.dependsOn npmInstall
+copyFrontEnd.dependsOn npmBuild
+compileJava.dependsOn copyFrontEnd
+
+clean.dependsOn cleanFrontEnd
