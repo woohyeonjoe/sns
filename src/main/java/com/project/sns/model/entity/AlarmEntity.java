@@ -14,6 +14,8 @@ import javax.persistence.*;
 import java.sql.Timestamp;
 import java.time.Instant;
 
+import static javax.persistence.FetchType.LAZY;
+
 @Entity
 @Table(name = "\"alarm\"", indexes = {
         @Index(name = "user_id_idx", columnList = "user_id")
@@ -30,7 +32,7 @@ public class AlarmEntity {
     private Integer id;
 
     // 알람을 받은 사람
-    @ManyToOne
+    @ManyToOne(fetch = LAZY)
     @JoinColumn(name = "user_id")
     private UserEntity user;
 

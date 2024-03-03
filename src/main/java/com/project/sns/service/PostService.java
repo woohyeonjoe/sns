@@ -7,6 +7,8 @@ import com.project.sns.model.AlarmType;
 import com.project.sns.model.Comment;
 import com.project.sns.model.Post;
 import com.project.sns.model.entity.*;
+import com.project.sns.model.event.AlarmEvent;
+import com.project.sns.producer.AlarmProducer;
 import com.project.sns.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -30,6 +32,10 @@ public class PostService {
     private final CommentRepository commentEntityRepository;
 
     private final AlarmEntityRepository alarmEntityRepository;
+
+    private final AlarmService alarmService;
+
+    private final AlarmProducer alarmProducer;
 
     @Transactional
     public void create(String title, String body, String userName) {
@@ -76,6 +82,8 @@ public class PostService {
             throw new SnsApplicationException(ErrorCode.INVALID_PERMISSION, String.format("%s has no permission with %s", userName, postId));
         }
 
+        likeEntityRepository.deleteAllByPost(postEntity);
+        commentEntityRepository.deleteAllByPost(postEntity);
         postEntityRepository.delete(postEntity);
     }
 
@@ -107,11 +115,14 @@ public class PostService {
         likeEntityRepository.save(LikeEntity.of(userEntity, postEntity));
 
         // alarm save
-        alarmEntityRepository.save(AlarmEntity.of(postEntity.getUser(), AlarmType.NEW_LIKE_ON_POST, new AlarmArgs(userEntity.getId(), postEntity.getId())));
+        AlarmEntity alarmEntity = alarmEntityRepository.save(AlarmEntity.of(postEntity.getUser(), AlarmType.NEW_LIKE_ON_POST, new AlarmArgs(userEntity.getId(), postEntity.getId())));
+
+        // alarm sse send
+        alarmProducer.send(new AlarmEvent(postEntity.getUser().getId(), AlarmType.NEW_LIKE_ON_POST, new AlarmArgs(userEntity.getId(), postEntity.getId())));
     }
 
 
-    public int likeCount(Integer postId) {
+    public long likeCount(Integer postId) {
         // post exist (포스트 존재 유무 체크)
         PostEntity postEntity = getPostEntityOrException(postId);
 
@@ -133,7 +144,10 @@ public class PostService {
         commentEntityRepository.save(CommentEntity.of(userEntity, postEntity, comment));
 
         // alarm save
-        alarmEntityRepository.save(AlarmEntity.of(postEntity.getUser(), AlarmType.NEW_COMMENT_ON_POST, new AlarmArgs(userEntity.getId(), postEntity.getId())));
+        AlarmEntity alarmEntity = alarmEntityRepository.save(AlarmEntity.of(postEntity.getUser(), AlarmType.NEW_COMMENT_ON_POST, new AlarmArgs(userEntity.getId(), postEntity.getId())));
+
+        // alarm sse send
+        alarmProducer.send(new AlarmEvent(postEntity.getUser().getId(), AlarmType.NEW_LIKE_ON_POST, new AlarmArgs(userEntity.getId(), postEntity.getId())));
     }
 
 
@@ -152,7 +166,7 @@ public class PostService {
 
 
     private UserEntity getUserOrException(String userName) {
-        // post exist (포스트 존재 유무 체크)
+        // user exist (유저 존재 유무 체크)
         return userEntityRepository.findByUserName(userName).orElseThrow(() ->
                 new SnsApplicationException(ErrorCode.USER_NOT_FOUND, String.format("%s not founded", userName)));
     }
